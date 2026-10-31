@@ -1,0 +1,17 @@
+CRÉDITOS DE ASSETS DE TERCEROS
+==============================
+
+Casa de dos pisos con sótano ("Empty House")
+  Autor:    loafbrr
+  Fuente:   https://loafbrr.itch.io/empty-house
+  Licencia: Creative Commons Attribution 4.0 (CC BY 4.0)
+            https://creativecommons.org/licenses/by/4.0/
+  Cambios:  se quitaron las hojas de 2 puertas interiores, se aplicaron los
+            Geometry Nodes, se unió en una sola malla y se exportó a FBX.
+  >> Esta licencia OBLIGA a dar crédito al autor (por ejemplo, en los créditos del juego):
+     "Empty House" por loafbrr (CC BY 4.0)
+
+Muebles ("Furniture Kit 2.0")
+  Autor:    Kenney (www.kenney.nl)
+  Fuente:   https://kenney.nl/assets/furniture-kit
+  Licencia: Creative Commons Zero (CC0) – dar crédito es opcional.

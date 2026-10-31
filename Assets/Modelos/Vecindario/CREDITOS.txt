@@ -1,0 +1,15 @@
+CRÉDITOS - Nivel1Mundo.fbx (vecindario + casa grande)
+=====================================================
+
+Todo el contenido de este modelo es CC0 (dominio público): libre para uso comercial,
+dar crédito es opcional.
+
+- Casa (muros, pisos, escalera, muebles): "Furniture Kit 2.0" – Kenney (www.kenney.nl)
+  https://kenney.nl/assets/furniture-kit
+- Casas vecinas, árboles, cercas, caminos: "City Kit (Suburban)" – Kenney
+  https://kenney.nl/assets/city-kit-suburban
+- Calle y postes de luz: "City Kit (Roads)" – Kenney
+  https://kenney.nl/assets/city-kit-roads
+
+El tejado, techo, banquetas, pasto, barandal de la escalera y límites invisibles
+se modelaron en Blender para este proyecto.
