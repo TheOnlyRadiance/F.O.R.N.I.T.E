@@ -1,0 +1,31 @@
+CRÉDITOS DE AUDIO
+=================
+
+Pisadas (pasto, madera, concreto, alfombra), golpes metálicos y suaves
+  "Impact Sounds" – Kenney (www.kenney.nl) – CC0
+  https://kenney.nl/assets/impact-sounds
+
+Ropa, cinturón, monedas, desenvainar (gancho)
+  "RPG Audio" – Kenney – CC0
+  https://kenney.nl/assets/rpg-audio
+
+Dash, sobrecarga, avisos de habilidad lista, botín completo, alertas
+  "Digital Audio" – Kenney – CC0
+  https://kenney.nl/assets/digital-audio
+
+Ladridos de perro (recortados del montaje original)
+  "Dog sounds" – pauliuw (OpenGameArt) – CC0
+  https://opengameart.org/content/dog-sounds
+
+Gruñido de perro
+  "Dog Growl" – bonebrah (OpenGameArt) – CC0
+  https://opengameart.org/content/dog-growl
+
+Grillos (ambiente nocturno en bucle)
+  "Crickets ambient noise (loopable)" – OpenGameArt – CC0
+  https://opengameart.org/content/crickets-ambient-noise-loopable
+
+Voces del guardia ("¡Alto ahí! ¡Te tengo, ladrón!", "¿Quién anda ahí?", etc.)
+  Generadas para este proyecto con la voz de Windows "Microsoft Raúl" (es-MX).
+
+Todos los sonidos son CC0: libres para uso comercial, dar crédito es opcional.

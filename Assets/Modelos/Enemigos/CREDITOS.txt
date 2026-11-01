@@ -1,0 +1,18 @@
+CRÉDITOS - Enemigos
+===================
+
+Guardia (humano con uniforme de seguridad)
+  Base:     "Worker" – Quaternius (Ultimate Animated Character Pack)
+  Fuente:   https://poly.pizza/m/Yg2bQZO6Hj
+  Licencia: CC0 (dominio público) – dar crédito es opcional.
+  Cambios:  uniforme azul marino de guardia nocturno (camisa, chaleco con franjas reflejantes, pantalón),
+            casco recoloreado como gorra con insignia, placa dorada, cinturón con radio y linterna en la mano.
+            Animaciones: Idle, Walk, Run, Interact, Wave y más.
+
+Perro guardián ("Husky", Ultimate Animated Animal Pack)
+  Autor:    Quaternius
+  Fuente:   https://poly.pizza/m/wcWiuEqwzq
+  Licencia: CC0 (dominio público) – dar crédito es opcional.
+  Nota: el GDD pide un Bulldog; no se encontró uno gratuito y animado, se usó el Husky.
+
+(El guardia anterior "Male Officer" de J-Toastie, CC BY 3.0, ya NO se usa.)
