@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 /// Cámara en tercera persona que orbita alrededor del jugador.
 ///   Mouse / stick derecho ... girar la cámara
 ///   Rueda del mouse ......... acercar / alejar
-///   Esc ..................... liberar el cursor (clic para volver a capturarlo)
+///   Esc ..................... menú de pausa (lo maneja MenuPausa)
 /// Evita atravesar paredes acercándose cuando hay algo entre la cámara y el jugador.
 /// </summary>
 public class CamaraSeguimiento : MonoBehaviour
@@ -59,12 +59,13 @@ public class CamaraSeguimiento : MonoBehaviour
         float dt = Time.unscaledDeltaTime;
 
         ManejarCursor();
+        bool pausado = MenuPausa.Pausado || PantallaControles.Abierta;
 
         // --- entrada de rotación
         Vector2 giro = Vector2.zero;
-        if (Mouse.current != null && Cursor.lockState == CursorLockMode.Locked)
+        if (!pausado && Mouse.current != null && Cursor.lockState == CursorLockMode.Locked)
             giro += Mouse.current.delta.ReadValue() * sensibilidadMouse;
-        if (Gamepad.current != null)
+        if (!pausado && Gamepad.current != null)
             giro += Gamepad.current.rightStick.ReadValue() * sensibilidadStick * dt;
 
         yaw += giro.x;
@@ -72,7 +73,7 @@ public class CamaraSeguimiento : MonoBehaviour
         pitch = Mathf.Clamp(pitch, anguloMin, anguloMax);
 
         // --- zoom
-        if (Mouse.current != null)
+        if (!pausado && Mouse.current != null)
         {
             float rueda = Mouse.current.scroll.ReadValue().y;
             distancia = Mathf.Clamp(distancia - rueda * velocidadZoom * distancia, distanciaMin, distanciaMax);
@@ -104,11 +105,12 @@ public class CamaraSeguimiento : MonoBehaviour
 
     private void ManejarCursor()
     {
-        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) BloquearCursor(false);
+        // Esc lo maneja MenuPausa (pausa y libera el cursor); aquí solo se recaptura al hacer clic en el juego.
+        if (MenuPausa.Pausado || MenuPausa.PartidaTerminada) return;
         if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked) BloquearCursor(true);
     }
 
-    private static void BloquearCursor(bool bloquear)
+    public static void BloquearCursor(bool bloquear)
     {
         Cursor.lockState = bloquear ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !bloquear;

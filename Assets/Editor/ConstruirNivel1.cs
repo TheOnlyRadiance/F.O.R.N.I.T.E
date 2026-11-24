@@ -40,6 +40,68 @@ public static class ConstruirNivel1
         EditorApplication.delayCall += OfrecerBotinUnaVez;
         EditorApplication.delayCall += OfrecerNocheUnaVez;
         EditorApplication.delayCall += OfrecerEnemigosUnaVez;
+        EditorApplication.delayCall += OfrecerSpawnUnaVez;
+    }
+
+    // ===================================================================== SPAWN FUERA DE LA CASA
+
+    private const string ClavePrefSpawn = "FORNITE_SpawnFuera_Ofrecido_v1";
+
+    private static void OfrecerSpawnUnaVez()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode || EditorPrefs.GetBool(ClavePrefSpawn, false)) return;
+        EditorPrefs.SetBool(ClavePrefSpawn, true);
+        if (EditorUtility.DisplayDialog("F.O.R.N.I.T.E",
+                "¿Mover al MAPACHE fuera de la casa en el Nivel1?\n\nSe busca un lugar en la calle/jardín, lejos de la casa y de los guardias, y se guarda en la escena (también se acomoda la cámara).\n\nTambién está en F.O.R.N.I.T.E > Colocar mapache fuera de la casa",
+                "Mover", "Más tarde"))
+            ColocarSpawnFueraMenu();
+    }
+
+    [MenuItem("F.O.R.N.I.T.E/Colocar mapache fuera de la casa")]
+    public static void ColocarSpawnFueraMenu()
+    {
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        var escena = EditorSceneManager.OpenScene(RutaEscena, OpenSceneMode.Single);
+        if (ColocarSpawnFuera(escena))
+        {
+            EditorSceneManager.MarkSceneDirty(escena);
+            EditorSceneManager.SaveScene(escena);
+        }
+    }
+
+    /// <summary>Usa la misma búsqueda que GestorPartida para dejar al mapache afuera de la casa en la escena guardada.</summary>
+    private static bool ColocarSpawnFuera(UnityEngine.SceneManagement.Scene escena)
+    {
+        var jugador = escena.GetRootGameObjects().Select(r => r.GetComponent<ControladorMapache>()).FirstOrDefault(c => c != null);
+        if (jugador == null)
+        {
+            EditorUtility.DisplayDialog("Spawn", "No encontré al Mapache (ControladorMapache) en el Nivel1.", "OK");
+            return false;
+        }
+
+        var temp = new GameObject("TempSpawn") { hideFlags = HideFlags.HideAndDontSave };
+        bool ok;
+        Vector3 pos; Quaternion rot;
+        try { ok = temp.AddComponent<GestorPartida>().CalcularSpawnParaEditor(jugador, out pos, out rot); }
+        finally { Object.DestroyImmediate(temp); }
+        if (!ok)
+        {
+            EditorUtility.DisplayDialog("Spawn", "No encontré un lugar libre fuera de la casa. Mueve al Mapache a mano en la escena.", "OK");
+            return false;
+        }
+
+        jugador.transform.SetPositionAndRotation(pos + Vector3.up * 0.05f, rot);
+        var cam = Camera.main;
+        if (cam != null)
+        {
+            Vector3 p = jugador.transform.position;
+            cam.transform.position = p - jugador.transform.forward * 3.4f + Vector3.up * 1.9f;
+            cam.transform.LookAt(p + Vector3.up * 0.85f);
+        }
+        Selection.activeGameObject = jugador.gameObject;
+        SceneView.lastActiveSceneView?.FrameSelected();
+        Debug.Log($"[Nivel1] Mapache colocado fuera de la casa en {pos}.");
+        return true;
     }
 
     // ===================================================================== ENEMIGOS
@@ -505,7 +567,7 @@ public static class ConstruirNivel1
         if (EditorApplication.isPlayingOrWillChangePlaymode || EditorPrefs.GetBool(ClavePrefBotin, false)) return;
         EditorPrefs.SetBool(ClavePrefBotin, true);
         if (EditorUtility.DisplayDialog("F.O.R.N.I.T.E",
-                "¿Agregar ahora el BOTÍN al Nivel1?\n\n• 8 basureros dorados en el vecindario\n• 4 objetos escondidos en la casa\n\nSe colocan al azar en cada partida y se recogen con la tecla E.\n(No se reconstruye el resto del nivel.)\n\nTambién está en F.O.R.N.I.T.E > Agregar botín al Nivel 1",
+                "¿Agregar ahora el BOTÍN al Nivel1?\n\n• 5 basureros dorados en el vecindario\n• 4 objetos escondidos en la casa\n\nSe colocan al azar en cada partida y se recogen con la tecla E.\n(No se reconstruye el resto del nivel.)\n\nTambién está en F.O.R.N.I.T.E > Agregar botín al Nivel 1",
                 "Agregar", "Más tarde"))
             AgregarBotinMenu();
     }
@@ -545,7 +607,7 @@ public static class ConstruirNivel1
         arr.arraySize = objetos.Length;
         for (int i = 0; i < objetos.Length; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = objetos[i];
         so.ApplyModifiedPropertiesWithoutUndo();
-        Debug.Log("[Botín] Agregado al Nivel1: 8 basureros dorados + 4 objetos en la casa (tecla E).");
+        Debug.Log("[Botín] Agregado al Nivel1: 5 basureros dorados + 4 objetos en la casa (tecla E).");
         return true;
     }
 
@@ -718,6 +780,9 @@ public static class ConstruirNivel1
 
         // ---------- 7) guardias, perro, NavMesh y alerta
         AgregarEnemigos(escena);
+
+        // ---------- 8) el mapache empieza afuera de la casa
+        ColocarSpawnFuera(escena);
 
         EditorSceneManager.MarkSceneDirty(escena);
         EditorSceneManager.SaveScene(escena);

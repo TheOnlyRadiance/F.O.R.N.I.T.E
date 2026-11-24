@@ -328,7 +328,7 @@ public class ControladorMapache : MonoBehaviour
         ObjetivoGanchoValido = false;
         if (camara == null || UsandoGancho) return;
 
-        var hits = Physics.RaycastAll(camara.position, camara.forward, alcanceGancho + 8f, ~0, QueryTriggerInteraction.Ignore);
+        var hits = Physics.RaycastAll(camara.position, camara.forward, alcanceGancho + 8f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
         foreach (var h in hits)
         {
@@ -341,7 +341,7 @@ public class ControladorMapache : MonoBehaviour
             {
                 // muro: buscar el borde de arriba (techo o cornisa) para trepar
                 Vector3 dentro = h.point - h.normal * 0.45f;
-                if (Physics.Raycast(dentro + Vector3.up * 4f, Vector3.down, out var arriba, 4f, ~0, QueryTriggerInteraction.Ignore) && arriba.normal.y > 0.5f)
+                if (Physics.Raycast(dentro + Vector3.up * 4f, Vector3.down, out var arriba, 4f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) && arriba.normal.y > 0.5f)
                     destino = arriba.point + Vector3.up * 0.35f;
             }
             objetivoGancho = destino;
@@ -449,6 +449,37 @@ public class ControladorMapache : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ utilidades
+
+    /// <summary>Mueve al mapache al instante (spawn, rescate al caer, límites del mapa) y anula su inercia.</summary>
+    public void Teletransportar(Vector3 posicion, Quaternion? rotacion = null)
+    {
+        if (cc == null) cc = GetComponent<CharacterController>();
+        if (UsandoGancho) { estadoGancho = EstadoGancho.Inactivo; if (cuerda != null) cuerda.enabled = false; }
+        tiempoDashRestante = 0f;
+        velocidadHorizontal = Vector3.zero;
+        velocidadVertical = 0f;
+        bool estaba = cc.enabled;
+        cc.enabled = false;
+        transform.position = posicion;
+        if (rotacion.HasValue) transform.rotation = rotacion.Value;
+        cc.enabled = estaba;
+        Physics.SyncTransforms();
+    }
+
+    /// <summary>Regresa al mapache hacia dentro (límite del mapa) sin perder el contacto con el suelo; anula la velocidad hacia afuera.</summary>
+    public void EmpujarHaciaDentro(Vector3 desplazamiento)
+    {
+        if (cc == null) cc = GetComponent<CharacterController>();
+        desplazamiento.y = 0f;
+        if (desplazamiento.sqrMagnitude < 1e-8f) return;
+        if (UsandoGancho) SoltarGancho(0f, 0f);
+        Vector3 haciaDentro = desplazamiento.normalized;
+        if (HaciendoDash && Vector3.Dot(direccionDash, haciaDentro) < 0f) { tiempoDashRestante = 0f; TerminarDash(); }
+        float haciaFuera = Vector3.Dot(velocidadHorizontal, -haciaDentro);
+        if (haciaFuera > 0f) velocidadHorizontal += haciaDentro * haciaFuera;
+        if (cc.enabled) cc.Move(desplazamiento);
+        else transform.position += desplazamiento;
+    }
 
     private Vector3 DireccionRelativaACamara(Vector2 entrada)
     {

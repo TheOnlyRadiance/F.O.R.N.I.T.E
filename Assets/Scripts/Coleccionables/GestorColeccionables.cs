@@ -21,7 +21,7 @@ public class GestorColeccionables : MonoBehaviour
     [SerializeField] private string[] nombresObjetosCasa = { "Cofre de joyas", "Alcancía de cerdito", "Reloj de oro", "Diamante gigante" };
 
     [Header("Cantidades y separación")]
-    [SerializeField] private int cantidadBasureros = 8;
+    [SerializeField] private int cantidadBasureros = 5;
     [SerializeField] private float distanciaMinEntreBasureros = 12f;
     [SerializeField] private float distanciaMinEntreObjetosCasa = 4f;
     [SerializeField] private float distanciaMinAlJugador = 5f;
@@ -44,6 +44,9 @@ public class GestorColeccionables : MonoBehaviour
     public int ObjetosCasaEncontrados { get; private set; }
     public int TotalBasureros => basureros.Count;
     public int TotalObjetosCasa => objetosCasa.Count;
+    /// <summary>Modelos del botín (los usa la cinemática de escape para mostrar lo que te llevas).</summary>
+    public GameObject ModeloBasurero => modeloBasurero;
+    public IReadOnlyList<GameObject> ModelosObjetosCasa => modelosObjetosCasa;
     public event System.Action<Coleccionable> AlRecoger;
     public event System.Action AlCompletarTodo;
 
@@ -61,6 +64,8 @@ public class GestorColeccionables : MonoBehaviour
     private float tAviso, tFinal;
 
     private static readonly Color Oro = new Color(1f, 0.78f, 0.25f);
+    /// <summary>Capas para colocar el botín: todo menos "Ignore Raycast" (ahí están los muros invisibles del borde).</summary>
+    private const int Capas = Physics.DefaultRaycastLayers;
 
     // ------------------------------------------------------------------ inicio
 
@@ -151,30 +156,111 @@ public class GestorColeccionables : MonoBehaviour
             if (modelosObjetosCasa[idx] == null) continue;
             float pisoY = baseY + alturaPlantas[plantas[k]];
 
+            // se crea primero (escondido) para medir su tamaño real y apoyarlo por la base
+            var c = CrearApoyado(modelosObjetosCasa[idx], nombresObjetosCasa[idx], out float radio, out float alto);
+            c.gameObject.SetActive(false);
+
             bool ok = false;
-            for (int intento = 0; intento < 1500 && !ok; intento++)
+            for (int intento = 0; intento < 2500 && !ok; intento++)
             {
                 var p = new Vector3(Random.Range(casa.min.x + margenMuro, casa.max.x - margenMuro), pisoY + 2.0f,
                                     Random.Range(casa.min.z + margenMuro, casa.max.z - margenMuro));
-                if (!Physics.Raycast(p, Vector3.down, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                if (!Physics.Raycast(p, Vector3.down, out var hit, 3f, Capas, QueryTriggerInteraction.Ignore)) continue;
                 if (Mathf.Abs(hit.point.y - pisoY) > 0.12f || hit.normal.y < 0.9f) continue;          // sobre el piso, no sobre muebles ni escalones
-                if (!Physics.Raycast(hit.point + Vector3.up * 0.2f, Vector3.up, 3.2f, ~0, QueryTriggerInteraction.Ignore)) continue; // bajo techo = dentro de la casa
-                if (!RodeadoDeParedes(hit.point + Vector3.up * 0.5f, 25f)) continue;                     // encerrado por muros (no afuera)
-                if (Physics.CheckSphere(hit.point + Vector3.up * 0.45f, 0.35f, ~0, QueryTriggerInteraction.Ignore)) continue;      // lejos de muros y muebles
-                if (Physics.CheckSphere(hit.point + Vector3.up * 1.1f, 0.3f, ~0, QueryTriggerInteraction.Ignore)) continue;        // nada encima (no debajo de mesas)
-                if (MuyCerca(hit.point, usados, distanciaMinEntreObjetosCasa)) continue;
-                if (jugador != null && Vector3.Distance(hit.point, jugador.position) < distanciaMinAlJugador) continue;
+                Vector3 suelo = hit.point;
+                if (!Physics.Raycast(suelo + Vector3.up * 0.2f, Vector3.up, 3.2f, Capas, QueryTriggerInteraction.Ignore)) continue; // bajo techo = dentro de la casa
+                if (!RodeadoDeParedes(suelo + Vector3.up * 0.5f, 25f)) continue;                         // encerrado por muros (no afuera)
+                if (!HuellaLibre(suelo, radio, alto)) continue;                                           // nada encima, debajo ni encimado
+                if (!VisibleYAlcanzable(suelo, radio, alto)) continue;                                    // el mapache puede pararse junto y verlo
+                if (MuyCerca(suelo, usados, distanciaMinEntreObjetosCasa)) continue;
+                if (jugador != null && Vector3.Distance(suelo, jugador.position) < distanciaMinAlJugador) continue;
 
-                usados.Add(hit.point);
-                var c = Crear(modelosObjetosCasa[idx], hit.point, Coleccionable.Tipo.ObjetoCasa, nombresObjetosCasa[idx], "Tomar");
+                usados.Add(suelo);
+                c.transform.SetPositionAndRotation(suelo + Vector3.up * 0.01f, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                c.gameObject.SetActive(true);
                 c.girar = true;
-                c.CrearBrillo(Oro, 1.8f, 0.9f, 0.35f);
+                c.CrearBrillo(Oro, 1.8f, 0.9f, alto + 0.25f);
                 objetosCasa.Add(c);
                 nombresColocados.Add(c.nombre);
                 ok = true;
             }
-            if (!ok) Debug.LogWarning($"[Botín] No encontré lugar libre para '{nombresObjetosCasa[idx]}'.");
+            if (!ok)
+            {
+                Debug.LogWarning($"[Botín] No encontré lugar libre para '{nombresObjetosCasa[idx]}'.");
+                Destroy(c.gameObject);
+            }
         }
+    }
+
+    /// <summary>
+    /// Crea el objeto dentro de una raíz cuyo origen es el CENTRO DE LA BASE del modelo:
+    /// así queda apoyado en el piso, y al girar o crecer (resaltado) no se hunde ni se mete en los muebles.
+    /// Devuelve el radio horizontal que barre al girar y su altura.
+    /// </summary>
+    private Coleccionable CrearApoyado(GameObject prefab, string nombre, out float radio, out float alto)
+    {
+        var raiz = new GameObject(nombre);
+        raiz.transform.SetParent(transform, false);
+        raiz.transform.position = new Vector3(0f, -500f, 0f);
+
+        var modelo = Instantiate(prefab, raiz.transform);
+        modelo.transform.localPosition = Vector3.zero;
+        modelo.transform.localRotation = Quaternion.identity;
+        foreach (var col in modelo.GetComponentsInChildren<Collider>()) Destroy(col);   // que no estorbe al mapache
+
+        var rends = modelo.GetComponentsInChildren<Renderer>();
+        Bounds b = rends.Length > 0 ? rends[0].bounds : new Bounds(raiz.transform.position, Vector3.one * 0.4f);
+        foreach (var r in rends) b.Encapsulate(r.bounds);
+        // centrar en X/Z y apoyar la base en y = 0 de la raíz
+        Vector3 desfase = raiz.transform.position - new Vector3(b.center.x, b.min.y, b.center.z);
+        modelo.transform.position += desfase;
+
+        const float escalaResaltado = 1.2f;   // crece al resaltarlo
+        radio = Mathf.Sqrt(b.extents.x * b.extents.x + b.extents.z * b.extents.z) * escalaResaltado + 0.05f;
+        alto = b.size.y * escalaResaltado;
+
+        var c = raiz.AddComponent<Coleccionable>();
+        c.tipo = Coleccionable.Tipo.ObjetoCasa; c.nombre = nombre; c.accion = "Tomar";
+        return c;
+    }
+
+    /// <summary>El círculo que ocupa el objeto (girando) está libre: piso parejo debajo, nada encima y sin tocar muros ni muebles.</summary>
+    private static bool HuellaLibre(Vector3 suelo, float radio, float alto)
+    {
+        // piso al mismo nivel en el centro y alrededor (nada encima: mesas, camas, repisas)
+        for (int i = 0; i <= 8; i++)
+        {
+            Vector3 o = i == 0 ? suelo : suelo + Quaternion.Euler(0f, i * 45f, 0f) * Vector3.forward * radio;
+            if (!Physics.Raycast(o + Vector3.up * 1.8f, Vector3.down, out var h, 2.2f, Capas, QueryTriggerInteraction.Ignore)) return false;
+            if (Mathf.Abs(h.point.y - suelo.y) > 0.05f || h.normal.y < 0.9f) return false;
+        }
+        // el volumen del objeto no toca nada (un poco despegado del piso para no contar el suelo)
+        float r = radio + 0.1f;
+        Vector3 abajo = suelo + Vector3.up * (r + 0.04f);
+        Vector3 arriba = suelo + Vector3.up * Mathf.Max(r + 0.04f, alto + 0.1f - r);
+        if (Physics.CheckCapsule(abajo, arriba, r, Capas, QueryTriggerInteraction.Ignore)) return false;
+        // espacio libre por encima (que no quede debajo de algo)
+        if (Physics.CheckBox(suelo + Vector3.up * (alto + 0.6f), new Vector3(radio, 0.45f, radio), Quaternion.identity, Capas, QueryTriggerInteraction.Ignore)) return false;
+        return true;
+    }
+
+    /// <summary>Hay un lugar junto al objeto donde cabe el mapache y desde ahí se ve sin obstáculos.</summary>
+    private static bool VisibleYAlcanzable(Vector3 suelo, float radio, float alto)
+    {
+        Vector3 centro = suelo + Vector3.up * Mathf.Max(0.15f, alto * 0.5f);
+        float dist = radio + 0.55f;
+        int libres = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 dir = Quaternion.Euler(0f, i * 45f, 0f) * Vector3.forward;
+            Vector3 pie = suelo + dir * dist;
+            if (!Physics.Raycast(pie + Vector3.up * 0.6f, Vector3.down, out var h, 1f, Capas, QueryTriggerInteraction.Ignore)) continue;
+            if (Mathf.Abs(h.point.y - suelo.y) > 0.1f) continue;                                                       // mismo piso
+            if (Physics.CheckCapsule(h.point + Vector3.up * 0.32f, h.point + Vector3.up * 0.9f, 0.27f, Capas, QueryTriggerInteraction.Ignore)) continue; // cabe el mapache
+            if (Physics.Linecast(h.point + Vector3.up * 0.7f, centro, Capas, QueryTriggerInteraction.Ignore)) continue;  // se ve el objeto
+            libres++;
+        }
+        return libres >= 2;
     }
 
     private void ColocarBasureros(Bounds mapa, Bounds casa)
@@ -184,33 +270,45 @@ public class GestorColeccionables : MonoBehaviour
         Bounds casaAmpliada = casa; casaAmpliada.Expand(new Vector3(8f, 100f, 8f));   // +4 m por lado
         var usados = new List<Vector3>();
         float alto = mapa.max.y + 50f;
-        float margen = limitePorMarcadores ? 1f : margenBordeMapa;   // los marcadores ya están 2.5 m dentro de la cerca
+        // bien adentro del vecindario: lejos de la cerca perimetral y del muro invisible
+        float margen = limitePorMarcadores ? 3f : margenBordeMapa + 3f;
+        bool hayNavMesh = UnityEngine.AI.NavMesh.SamplePosition(jugador != null ? jugador.position : casa.center, out _, 5f, UnityEngine.AI.NavMesh.AllAreas);
 
-        for (int intento = 0; intento < 6000 && basureros.Count < cantidadBasureros; intento++)
+        for (int intento = 0; intento < 8000 && basureros.Count < cantidadBasureros; intento++)
         {
             var p = new Vector3(Random.Range(mapa.min.x + margen, mapa.max.x - margen), alto,
                                 Random.Range(mapa.min.z + margen, mapa.max.z - margen));
             if (casaAmpliada.Contains(new Vector3(p.x, casa.center.y, p.z))) continue;                  // fuera de la casa
-            if (!Physics.Raycast(p, Vector3.down, out var hit, alto - mapa.min.y + 60f, ~0, QueryTriggerInteraction.Ignore)) continue;
+            if (!Physics.Raycast(p, Vector3.down, out var hit, alto - mapa.min.y + 60f, Capas, QueryTriggerInteraction.Ignore)) continue;
             if (hit.point.y > sueloY + 0.4f || hit.normal.y < 0.9f) continue;                             // suelo, no techos ni árboles
             float altura = hit.point.y - sueloY;
             if (altura > alturaCalleMin && altura < alturaCalleMax) continue;                              // no en medio de la calle
-            if (Physics.CheckSphere(hit.point + Vector3.up * 0.85f, 0.6f, ~0, QueryTriggerInteraction.Ignore)) continue; // espacio libre
+            if (Physics.CheckSphere(hit.point + Vector3.up * 0.85f, 0.6f, Capas, QueryTriggerInteraction.Ignore)) continue; // espacio libre
             if (MuyCerca(hit.point, usados, distanciaMinEntreBasureros)) continue;
             if (jugador != null && Vector3.Distance(hit.point, jugador.position) < distanciaMinAlJugador) continue;
             if (!BuscarApoyo(hit.point, out Vector3 haciaPared, out float distPared)) continue;           // junto a un muro, cerca o árbol
 
-            // acercarlo hasta quedar a ~45 cm del apoyo, comprobando que siga habiendo suelo
-            Vector3 junto = hit.point + haciaPared * Mathf.Max(0f, distPared - 0.45f);
-            if (!Physics.Raycast(junto + Vector3.up * 1.5f, Vector3.down, out var suelo2, 2.5f, ~0, QueryTriggerInteraction.Ignore)) continue;
+            // acercarlo hasta quedar a ~60 cm del apoyo, comprobando que siga habiendo suelo
+            Vector3 junto = hit.point + haciaPared * Mathf.Max(0f, distPared - 0.6f);
+            if (!Physics.Raycast(junto + Vector3.up * 1.5f, Vector3.down, out var suelo2, 2.5f, Capas, QueryTriggerInteraction.Ignore)) continue;
             if (Mathf.Abs(suelo2.point.y - hit.point.y) > 0.15f || suelo2.normal.y < 0.9f) continue;
-            if (Physics.CheckSphere(suelo2.point + Vector3.up * 0.7f, 0.3f, ~0, QueryTriggerInteraction.Ignore)) continue;
+            if (Physics.CheckSphere(suelo2.point + Vector3.up * 0.7f, 0.3f, Capas, QueryTriggerInteraction.Ignore)) continue;
+            if (!AlcanzableCaminando(suelo2.point, hayNavMesh)) continue;                                  // dentro del vecindario, se llega a pie
 
             bool tirado = Random.value < probabilidadTirado;
             if (tirado && !EspacioParaTirado(suelo2.point, -haciaPared)) tirado = false;
 
-            usados.Add(suelo2.point);
+            // se crea y se revisa con su tamaño real: que no se encime con nada y que se vea
             var c = CrearBasurero(suelo2.point, haciaPared, tirado);
+            if (!BasureroBienColocado(c, suelo2.point.y) && !(tirado && ReintentarParado(ref c, suelo2.point, haciaPared)))
+            {
+                c.gameObject.SetActive(false);
+                Destroy(c.gameObject);
+                continue;
+            }
+            c.GetComponentInChildren<CapsuleCollider>().enabled = true;
+            c.GetComponentInChildren<UnityEngine.AI.NavMeshObstacle>().enabled = true;
+            usados.Add(suelo2.point);
             basureros.Add(c);
         }
         if (basureros.Count < cantidadBasureros)
@@ -227,17 +325,62 @@ public class GestorColeccionables : MonoBehaviour
         for (int i = 0; i < 12; i++)
         {
             Vector3 d = Quaternion.Euler(0f, i * 30f, 0f) * Vector3.forward;
-            if (Physics.Raycast(o, d, out var h, 2.4f, ~0, QueryTriggerInteraction.Ignore) && Mathf.Abs(h.normal.y) < 0.5f && h.distance < mejor)
+            if (Physics.Raycast(o, d, out var h, 2.4f, Capas, QueryTriggerInteraction.Ignore) && Mathf.Abs(h.normal.y) < 0.5f && h.distance < mejor)
             { mejor = h.distance; haciaPared = d; hay = true; }
         }
         distancia = mejor;
         return hay;
     }
 
+    /// <summary>Con su tamaño real: no se encima con muros/cercas/árboles, está apoyado en el suelo y el mapache lo puede ver.</summary>
+    private static bool BasureroBienColocado(Coleccionable c, float sueloY)
+    {
+        var rends = c.GetComponentsInChildren<Renderer>();
+        if (rends.Length == 0) return false;
+        Bounds b = rends[0].bounds;
+        foreach (var r in rends) b.Encapsulate(r.bounds);
+
+        float baseY = sueloY + 0.06f;                  // despegado del piso para no contar el suelo
+        float altoLibre = Mathf.Max(0.1f, b.max.y - baseY);
+        var centro = new Vector3(b.center.x, baseY + altoLibre * 0.5f + 0.05f, b.center.z);
+        var mitad = new Vector3(b.extents.x + 0.05f, altoLibre * 0.5f + 0.05f, b.extents.z + 0.05f);
+        if (Physics.CheckBox(centro, mitad, Quaternion.identity, Capas, QueryTriggerInteraction.Ignore)) return false;
+
+        // suelo parejo debajo de toda la huella (no colgando de un escalón o una banqueta)
+        for (int i = 0; i < 4; i++)
+        {
+            var esquina = new Vector3(i % 2 == 0 ? b.min.x : b.max.x, b.max.y + 0.3f, i < 2 ? b.min.z : b.max.z);
+            if (!Physics.Raycast(esquina, Vector3.down, out var h, b.size.y + 1f, Capas, QueryTriggerInteraction.Ignore)) return false;
+            if (Mathf.Abs(h.point.y - sueloY) > 0.15f) return false;
+        }
+
+        return VisibleYAlcanzable(new Vector3(b.center.x, sueloY, b.center.z), Mathf.Max(b.extents.x, b.extents.z), b.size.y);
+    }
+
+    /// <summary>Si el bote tirado no cabe, se prueba parado en el mismo lugar.</summary>
+    private bool ReintentarParado(ref Coleccionable c, Vector3 suelo, Vector3 haciaPared)
+    {
+        c.gameObject.SetActive(false);
+        Destroy(c.gameObject);
+        c = CrearBasurero(suelo, haciaPared, false);
+        return BasureroBienColocado(c, suelo.y);
+    }
+
+    /// <summary>Se puede llegar caminando desde donde empieza el mapache (descarta patios cerrados y zonas fuera del vecindario).</summary>
+    private bool AlcanzableCaminando(Vector3 p, bool hayNavMesh)
+    {
+        if (!hayNavMesh || jugador == null) return true;
+        if (!UnityEngine.AI.NavMesh.SamplePosition(p, out var destino, 1.5f, UnityEngine.AI.NavMesh.AllAreas)) return false;
+        if (!UnityEngine.AI.NavMesh.SamplePosition(jugador.position, out var origen, 3f, UnityEngine.AI.NavMesh.AllAreas)) return true;
+        var camino = new UnityEngine.AI.NavMeshPath();
+        return UnityEngine.AI.NavMesh.CalculatePath(origen.position, destino.position, UnityEngine.AI.NavMesh.AllAreas, camino)
+               && camino.status == UnityEngine.AI.NavMeshPathStatus.PathComplete;
+    }
+
     /// <summary>¿Hay lugar en el suelo para que el bote quede acostado hacia 'dir'?</summary>
     private static bool EspacioParaTirado(Vector3 suelo, Vector3 dir)
     {
-        return !Physics.Raycast(suelo + Vector3.up * 0.35f, dir, 1.3f, ~0, QueryTriggerInteraction.Ignore);
+        return !Physics.Raycast(suelo + Vector3.up * 0.35f, dir, 1.3f, Capas, QueryTriggerInteraction.Ignore);
     }
 
     /// <summary>Crea un basurero dorado parado (de espaldas al muro) o tirado de lado sobre el suelo.</summary>
@@ -265,24 +408,19 @@ public class GestorColeccionables : MonoBehaviour
             modelo.transform.localRotation = Quaternion.Euler(0f, Random.Range(-15f, 15f), 0f);
         }
 
+        foreach (var otro in modelo.GetComponentsInChildren<Collider>()) Destroy(otro);
+        // colisión propia (para no atravesarlo); se activa solo cuando el lugar ya se validó
         var col = modelo.AddComponent<CapsuleCollider>();
         col.radius = 0.33f; col.height = 1.0f; col.center = new Vector3(0f, 0.5f, 0f); col.direction = 1;
+        col.enabled = false;
         var obstaculo = modelo.AddComponent<UnityEngine.AI.NavMeshObstacle>();
         obstaculo.shape = UnityEngine.AI.NavMeshObstacleShape.Capsule;
         obstaculo.radius = 0.35f; obstaculo.height = 1f; obstaculo.center = new Vector3(0f, 0.5f, 0f); obstaculo.carving = true;
+        obstaculo.enabled = false;
 
         var c = raiz.AddComponent<Coleccionable>();
         c.tipo = Coleccionable.Tipo.BasureroDorado; c.nombre = "Basurero dorado"; c.accion = tirado ? "Esculcar" : "Revisar";
         c.CrearBrillo(Oro, 3.5f, 1.4f, tirado ? 0.6f : 1.1f);
-        return c;
-    }
-
-    private Coleccionable Crear(GameObject modelo, Vector3 pos, Coleccionable.Tipo tipo, string nombre, string accion)
-    {
-        var go = Instantiate(modelo, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), transform);
-        go.name = nombre;
-        var c = go.AddComponent<Coleccionable>();
-        c.tipo = tipo; c.nombre = nombre; c.accion = accion;
         return c;
     }
 
@@ -291,7 +429,7 @@ public class GestorColeccionables : MonoBehaviour
     {
         Vector3[] dirs = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right };
         foreach (var d in dirs)
-            if (!Physics.Raycast(p, d, dist, ~0, QueryTriggerInteraction.Ignore)) return false;
+            if (!Physics.Raycast(p, d, dist, Capas, QueryTriggerInteraction.Ignore)) return false;
         return true;
     }
 
@@ -310,6 +448,7 @@ public class GestorColeccionables : MonoBehaviour
 
     private void Update()
     {
+        if (MenuPausa.Pausado) return;
         if (jugador == null)
         {
             var ctrl = FindAnyObjectByType<ControladorMapache>();

@@ -50,6 +50,10 @@ public class EnemigoVigilante : MonoBehaviour
 
     public float Deteccion { get; private set; }   // 0..1
     public bool Alertado => estado == Estado.Persiguiendo;
+    /// <summary>Puntos por donde patrulla (guardia) y zona donde deambula (perro). Los usa GestorPartida para elegir un spawn seguro.</summary>
+    public IReadOnlyList<Vector3> Ruta => ruta;
+    public Vector3 ZonaCentro => zonaCentro;
+    public bool EsPerro => tipo == Tipo.Perro;
 
     private static readonly List<EnemigoVigilante> todos = new();
     private static readonly int ParamVelocidad = Animator.StringToHash("Velocidad");

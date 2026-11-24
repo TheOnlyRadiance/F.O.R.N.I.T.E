@@ -665,8 +665,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 189686473}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.3999996, y: 0.20400028, z: 5.4999995}
+  m_LocalRotation: {x: 0, y: 0.8475253, z: 0, w: 0.53075504}
+  m_LocalPosition: {x: -33.999996, y: 0.17000292, z: 16.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3748,8 +3748,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 961739749}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.14920677, y: 0, z: 0, w: 0.98880607}
-  m_LocalPosition: {x: 4.3999996, y: 2.1040003, z: 2.0999994}
+  m_LocalRotation: {x: 0.079192206, y: 0.8380381, z: -0.12645641, w: 0.52481383}
+  m_LocalPosition: {x: -37.05883, y: 2.0700028, z: 17.984434}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7336,7 +7336,7 @@ MonoBehaviour:
   - "Alcanc\xEDa de cerdito"
   - Reloj de oro
   - Diamante gigante
-  cantidadBasureros: 8
+  cantidadBasureros: 5
   distanciaMinEntreBasureros: 12
   distanciaMinEntreObjetosCasa: 4
   distanciaMinAlJugador: 5
